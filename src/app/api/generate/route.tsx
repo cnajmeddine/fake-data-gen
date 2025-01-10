@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { fields, rowCount } = await req.json();
+    const { prompt, rowCount } = await req.json();
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
         model: 'meta-llama/llama-3-8b-instruct:extended',
         messages: [{
           role: 'user',
-          content: `Generate a fake dataset with the following fields: ${fields.join(', ')}. I want ${rowCount} rows of fake data. Return it as a JSON array.`
+          content: prompt
         }]
       })
     });
@@ -22,18 +22,46 @@ export async function POST(req: Request) {
     const data = await response.json();
     const content = data.choices[0].message.content;
     
-    // Parse the generated content as JSON
+    // Try multiple parsing strategies
     let parsedData;
     try {
+      // First try: direct JSON parse
       parsedData = JSON.parse(content);
     } catch (e) {
-      // If parsing fails, try to extract JSON from the text
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        parsedData = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Failed to parse generated data');
+      try {
+        // Second try: find JSON array in text
+        const jsonMatch = content.match(/\[\s*{[\s\S]*}\s*\]/);
+        if (jsonMatch) {
+          parsedData = JSON.parse(jsonMatch[0]);
+        } else {
+          // Third try: look for JSON-like structure and clean it
+          const cleanedContent = content
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
+          parsedData = JSON.parse(cleanedContent);
+        }
+      } catch (e2) {
+        console.error('Parsing error:', e2);
+        console.error('Raw content:', content);
+        return NextResponse.json(
+          { 
+            error: 'Failed to parse generated data',
+            rawContent: content 
+          },
+          { status: 500 }
+        );
       }
+    }
+
+    if (!Array.isArray(parsedData)) {
+      return NextResponse.json(
+        { 
+          error: 'Generated data is not an array',
+          rawContent: content 
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(parsedData);
