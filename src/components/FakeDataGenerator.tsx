@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import * as XLSX from 'xlsx';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -65,7 +66,10 @@ export default function FakeDataGenerator() {
         if (!customPrompt.trim()) {
           throw new Error('Please enter a custom prompt');
         }
-        promptContent = customPrompt;
+        //promptContent = customPrompt;
+        promptContent = `${customPrompt}
+
+        Important: Return ONLY a JSON array of objects based on the context above. Do not include any explanations or additional text.`;
       } else if (activeTab === 'dataset' && sampleData.length > 0) {
         if (!datasetContext.trim()) {
           throw new Error('Please provide context for your dataset');
